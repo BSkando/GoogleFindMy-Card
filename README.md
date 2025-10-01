@@ -1,4 +1,4 @@
-# Google Find My Device Card
+# Google FindMy Device (Find Hub) - Home Assistant Lovelace Card <img src="https://github.com/BSkando/GoogleFindMy-HA/blob/main/icon.png" width="30"> 
 
 A beautiful, feature-rich Lovelace card for the Google Find My Device integration with interactive Leaflet maps, location history tracking, and an intuitive visual editor.
 
