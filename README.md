@@ -58,9 +58,9 @@ A beautiful, feature-rich Lovelace card for the Google Find My Device integratio
 
 ## Installation
 
-~~### HACS (Recommended)
+~~### HACS (Recommended)~~
 
-1. Open HACS in Home Assistant
+~~1. Open HACS in Home Assistant
 2. Go to "Frontend" section
 3. Click the "+" button
 4. Search for "Google Find My Device Card"
