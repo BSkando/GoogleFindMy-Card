@@ -2,8 +2,6 @@
 
 A beautiful, feature-rich Lovelace card for the Google Find My Device integration with interactive Leaflet maps, location history tracking, and an intuitive visual editor.
 
-![Google Find My Device Card](https://via.placeholder.com/600x400/1a73e8/white?text=Google+Find+My+Device+Card)
-
 ## Features
 
 ### 🗺️ **Interactive Leaflet Maps**
