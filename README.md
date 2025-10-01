@@ -71,7 +71,7 @@ A beautiful, feature-rich Lovelace card for the Google Find My Device integratio
 
 1. Download `googlefindmy-card.js`
 2. Place it in `/config/www/community/googlefindmy-card/`
-3. Add the resource to your Lovelace configuration:
+3. Add the resource to your Lovelace configuration (Settings -> Dashboards -> 3-dot menu -> Resources -> Add resource):
 
 ```yaml
 resources:
