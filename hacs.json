@@ -1,0 +1,6 @@
+{
+  "name": "Google FindMy Device Card",
+  "render_readme": true,
+  "filename": "googlefindmy-card.js",
+  "content_in_root": false
+}
