@@ -1,5 +1,5 @@
 // Google Find My Device Card for Home Assistant
-// Version: 1.0.1 - Bug fixes: editor entity selection, config persistence, improved spacing
+// Version: 1.0.6 - Bug fixes: editor entity selection, config persistence, UI positioning, zoom control placement, responsive map resize
 
 import {
   LitElement,
@@ -58,6 +58,9 @@ class GoogleFindMyCard extends LitElement {
     this._markerOpacity = savedSettings.markerOpacity;
     this._showFilters = false;
     this._hass = null;
+
+    // Bind resize handler
+    this._handleResize = this._handleResize.bind(this);
 
     // Load Leaflet library
     console.log('[GoogleFindMy] Loading Leaflet.js...');
@@ -149,12 +152,31 @@ class GoogleFindMyCard extends LitElement {
     }
   }
 
+  connectedCallback() {
+    super.connectedCallback();
+    // Add resize listener
+    window.addEventListener('resize', this._handleResize);
+  }
+
   disconnectedCallback() {
     super.disconnectedCallback();
+    // Remove resize listener
+    window.removeEventListener('resize', this._handleResize);
     // Clean up map instance
     if (this._mapInstance) {
       this._mapInstance.remove();
       this._mapInstance = null;
+    }
+  }
+
+  _handleResize() {
+    // Invalidate map size when window resizes
+    if (this._mapInstance) {
+      setTimeout(() => {
+        if (this._mapInstance) {
+          this._mapInstance.invalidateSize();
+        }
+      }, 100);
     }
   }
 
@@ -192,8 +214,8 @@ class GoogleFindMyCard extends LitElement {
 
       .card-header {
         position: absolute;
-        top: 20px;
-        left: 50px;
+        top: 10px;
+        left: 12px;
         right: 12px;
         z-index: 1;
         display: flex;
@@ -202,7 +224,7 @@ class GoogleFindMyCard extends LitElement {
         background: rgba(255, 255, 255, 0.95);
         backdrop-filter: blur(10px);
         border-radius: 8px;
-        padding: 12px 16px;
+        padding: 8px 12px;
         box-shadow: 0 2px 8px rgba(0,0,0,0.1);
         height: 60px;
         box-sizing: border-box;
@@ -454,6 +476,41 @@ class GoogleFindMyCard extends LitElement {
         margin-right: 10px;
       }
 
+      /* Move zoom control to bottom-right */
+      .leaflet-top.leaflet-left {
+        top: auto;
+        bottom: 12px;
+        left: auto;
+        right: 12px;
+      }
+
+      /* Move attribution to bottom-center */
+      .leaflet-control-attribution {
+        position: absolute;
+        bottom: 0;
+        left: 50%;
+        transform: translateX(-50%);
+        background: rgba(255, 255, 255, 0.8);
+        padding: 0 8px;
+        font-size: 11px;
+        text-align: center;
+        margin: 0 !important;
+      }
+
+      .leaflet-bottom.leaflet-right {
+        bottom: 0;
+        left: 0;
+        right: 0;
+        text-align: center;
+        pointer-events: none;
+      }
+
+      .leaflet-bottom.leaflet-right .leaflet-control {
+        float: none;
+        display: inline-block;
+        pointer-events: auto;
+      }
+
       /* Zoom control */
       .leaflet-bar {
         box-shadow: 0 1px 5px rgba(0,0,0,0.65);
@@ -532,7 +589,7 @@ class GoogleFindMyCard extends LitElement {
       /* Filter panel for map controls */
       .filter-panel {
         position: absolute;
-        top: 95px;
+        top: 80px;
         right: 12px;
         z-index: 1000;
         background: rgba(255, 255, 255, 0.95);
@@ -642,7 +699,7 @@ class GoogleFindMyCard extends LitElement {
       .device-sidebar {
         position: absolute;
         left: 12px;
-        top: 95px;
+        top: 80px;
         bottom: 12px;
         width: 200px;
         background: rgba(255, 255, 255, 0.95);
@@ -811,15 +868,16 @@ class GoogleFindMyCard extends LitElement {
         background: rgba(255, 255, 255, 0.95);
         backdrop-filter: blur(10px);
         border-radius: 12px;
-        margin: 16px;
+        margin: 80px 16px 16px 16px;
       }
 
       /* Mobile responsive adjustments */
       @media (max-width: 768px) {
         .card-header {
-          left: 50px;
-          right: 12px;
-          padding: 10px 12px;
+          top: 8px;
+          left: 8px;
+          right: 8px;
+          padding: 8px;
         }
 
         .card-title {
@@ -833,13 +891,13 @@ class GoogleFindMyCard extends LitElement {
 
         .device-sidebar {
           width: 180px;
-          top: 95px;
+          top: 80px;
           padding: 12px;
           transform: translateX(-220px);
         }
 
         .filter-panel {
-          top: 95px;
+          top: 80px;
           right: 8px;
           max-width: 250px;
           font-size: 12px;
@@ -856,10 +914,11 @@ class GoogleFindMyCard extends LitElement {
 
       @media (max-width: 768px) {
         .card-header {
-          padding: 10px 12px !important;
-          left: 50px !important;
+          top: 8px !important;
+          left: 8px !important;
+          right: 8px !important;
+          padding: 6px !important;
           height: 60px !important;
-          top: 20px !important;
         }
 
         .card-title {
@@ -871,7 +930,7 @@ class GoogleFindMyCard extends LitElement {
           max-width: 150px !important;
           left: 8px !important;
           right: auto !important;
-          top: 95px !important;
+          top: 80px !important;
           padding: 8px !important;
           transform: translateX(-166px) !important;
         }
@@ -935,13 +994,13 @@ class GoogleFindMyCard extends LitElement {
         }
 
         .filter-panel {
-          top: 95px !important;
+          top: 80px !important;
           right: 8px !important;
           max-width: 200px !important;
         }
 
         .filter-panel.collapsed {
-          top: 95px !important;
+          top: 80px !important;
         }
       }
     `;
@@ -1967,7 +2026,7 @@ window.customCards.push({
 });
 
 console.info(
-  `%c GOOGLE-FINDMY-CARD %c Version 1.0.1 - Bug Fixes & UI Improvements `,
+  `%c GOOGLE-FINDMY-CARD %c Version 1.0.6 `,
   'color: white; font-weight: bold; background: #1a73e8',
   'color: #1a73e8; font-weight: bold; background: #f0f0f0'
 );
