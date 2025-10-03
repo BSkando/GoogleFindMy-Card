@@ -71,15 +71,9 @@ A beautiful, feature-rich Lovelace card for the Google Find My Device integratio
 
 1. In Home Assistant → HACS → Frontend
 2. Click ⋮ menu → Custom repositories
-3. Add your GitHub repo URL
+3. Add `https://github.com/BSkando/GoogleFindMy-Card` repo URL
 4. Select category: Dashboard
 5. Click Add
-
-```yaml
-resources:
-  - url: /local/community/googlefindmy-card/googlefindmy-card.js
-    type: module
-```
 
 ## Configuration
 
