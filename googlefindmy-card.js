@@ -1,5 +1,5 @@
 // Google Find My Device Card for Home Assistant
-// Version: 1.0.6 - Bug fixes: editor entity selection, config persistence, UI positioning, zoom control placement, responsive map resize
+// Version: 1.1.0 - Stable release: Fixed preview display, card rendering, and map initialization
 
 import {
   LitElement,
@@ -144,11 +144,19 @@ class GoogleFindMyCard extends LitElement {
 
     // Initialize or update map when Leaflet loads or selected device changes
     if ((changedProperties.has('_leafletLoaded') || changedProperties.has('_selectedDevice')) && this._leafletLoaded) {
-      // Fetch new history when device changes
-      if (changedProperties.has('_selectedDevice') && this._selectedDevice) {
-        this._fetchLocationHistory();
+      // Only update map if we have hass and devices
+      const devices = this.hass ? this._getDevices() : [];
+      const selectedDevice = this._selectedDevice ?
+        devices.find(d => d.entity_id === this._selectedDevice) :
+        devices[0];
+
+      if (this.hass && selectedDevice && this.hass.states[selectedDevice.entity_id]) {
+        // Fetch new history when device changes
+        if (changedProperties.has('_selectedDevice') && this._selectedDevice) {
+          this._fetchLocationHistory();
+        }
+        this._updateMap();
       }
-      this._updateMap();
     }
   }
 
@@ -198,6 +206,7 @@ class GoogleFindMyCard extends LitElement {
       }
 
       ha-card {
+        min-height: 400px;
         height: 100%;
         max-height: 100vh;
         display: flex;
@@ -1007,67 +1016,71 @@ class GoogleFindMyCard extends LitElement {
   }
 
   setConfig(config) {
-    // Accept empty entities array to allow configuration in editor
-    if (!config.entities) {
-      config.entities = [];
-    }
-    if (!Array.isArray(config.entities)) {
-      throw new Error("Entities must be an array");
-    }
+    // Accept empty or missing entities array
+    const entities = Array.isArray(config?.entities) ? config.entities : [];
+
     this.config = {
       title: "Find My Devices",
       show_last_seen: true,
       show_location_name: true,
-      show_coordinates: false,
-      enable_actions: true,
+      show_coordinates: true,
+      enable_actions: false,
       compact_mode: false,
       keep_device_list_pinned: false,
+      show_path_lines: false,
+      use_leaflet_map: true,
       ...config,
+      entities, // Override with validated entities array
     };
   }
 
   render() {
-    if (!this.hass || !this.config) {
-      return html``;
+    try {
+      if (!this.config) {
+        return html`<ha-card><p>Loading configuration...</p></ha-card>`;
+      }
+
+      const devices = this.hass ? this._getDevices() : [];
+
+      return html`
+        <ha-card>
+          <div class="card-header">
+            <div class="card-title">
+              <ha-icon class="card-icon" icon="mdi:google-maps"></ha-icon>
+              ${this.config.title || "Find My Devices"}
+            </div>
+            <div class="control-buttons">
+              <div class="control-button ${this._showDeviceList ? 'active' : ''}"
+                   @click=${this._toggleDeviceList}
+                   title="${this.config.keep_device_list_pinned ? 'Device list pinned' : 'Toggle device list'}">
+                <ha-icon icon="${this.config.keep_device_list_pinned ? 'mdi:pin' : 'mdi:format-list-bulleted'}"></ha-icon>
+              </div>
+              <div class="control-button" @click=${this._refreshAll} title="Refresh all devices">
+                <ha-icon icon="mdi:refresh"></ha-icon>
+              </div>
+            </div>
+          </div>
+
+          ${this._renderMap(devices)}
+
+          ${devices.length > 0 ? html`
+            <div class="device-sidebar ${this._showDeviceList ? 'open' : ''}">
+              <div class="device-list">
+                ${devices.map(device => this._renderDeviceCard(device))}
+              </div>
+            </div>
+          ` : html`
+            <div class="no-devices">
+              <ha-icon icon="mdi:devices" style="width: 48px; height: 48px;"></ha-icon>
+              <p>No Google Find My Device trackers found</p>
+            </div>
+          `}
+        </ha-card>
+      `;
+    } catch (error) {
+      console.error('[GoogleFindMy] Render error:', error);
+      return html`<ha-card><p style="padding: 16px; color: red;">Error rendering card. Check console.</p></ha-card>`;
     }
-
-    const devices = this._getDevices();
-
-    return html`
-      <ha-card>
-        <div class="card-header">
-          <div class="card-title">
-            <ha-icon class="card-icon" icon="mdi:google-maps"></ha-icon>
-            ${this.config.title || "Find My Devices"}
-          </div>
-          <div class="control-buttons">
-            <div class="control-button ${this._showDeviceList ? 'active' : ''}"
-                 @click=${this._toggleDeviceList}
-                 title="${this.config.keep_device_list_pinned ? 'Device list pinned' : 'Toggle device list'}">
-              <ha-icon icon="${this.config.keep_device_list_pinned ? 'mdi:pin' : 'mdi:format-list-bulleted'}"></ha-icon>
-            </div>
-            <div class="control-button" @click=${this._refreshAll} title="Refresh all devices">
-              <ha-icon icon="mdi:refresh"></ha-icon>
-            </div>
-          </div>
-        </div>
-
-        ${this._renderMap(devices)}
-
-        ${devices.length > 0 ? html`
-          <div class="device-sidebar ${this._showDeviceList ? 'open' : ''}">
-            <div class="device-list">
-              ${devices.map(device => this._renderDeviceCard(device))}
-            </div>
-          </div>
-        ` : html`
-          <div class="no-devices">
-            <ha-icon icon="mdi:devices" style="width: 48px; height: 48px;"></ha-icon>
-            <p>No Google Find My Device trackers found</p>
-          </div>
-        `}
-      </ha-card>
-    `;
   }
 
   _renderMap(devices) {
@@ -1095,9 +1108,7 @@ class GoogleFindMyCard extends LitElement {
     }
 
     // Use Leaflet map if loaded, otherwise fall back to iframe
-    console.log('[GoogleFindMy] Map render - Leaflet loaded:', this._leafletLoaded, 'Config:', this.config.use_leaflet_map);
     if (this._leafletLoaded && this.config.use_leaflet_map !== false) {
-      console.log('[GoogleFindMy] Rendering Leaflet map');
       return html`
         <div class="map-container">
           <div id="leaflet-map"></div>
@@ -1347,7 +1358,6 @@ class GoogleFindMyCard extends LitElement {
     const endTime = new Date();
     const startTime = new Date(endTime - this._historyDays * 24 * 60 * 60 * 1000);
 
-    console.log(`[GoogleFindMy] Fetching ${this._historyDays} days of history for ${entityId}`);
 
     try {
       // Fetch history from Home Assistant
@@ -1360,7 +1370,6 @@ class GoogleFindMyCard extends LitElement {
         significant_changes_only: false
       });
 
-      console.log('[GoogleFindMy] History response:', history);
 
       // Process history data - response format is {entity_id: [...states]}
       const locations = [];
@@ -1370,7 +1379,6 @@ class GoogleFindMyCard extends LitElement {
       const stateArray = history && history[entityId] ? history[entityId] : null;
 
       if (stateArray && stateArray.length > 0) {
-        console.log(`[GoogleFindMy] Processing ${stateArray.length} state records`);
 
         for (const state of stateArray) {
           // Handle both full object format and compact format
@@ -1402,7 +1410,6 @@ class GoogleFindMyCard extends LitElement {
         console.warn('[GoogleFindMy] No state data found in history response');
       }
 
-      console.log(`[GoogleFindMy] Processed ${locations.length} location points`);
       this._locationHistory = locations;
       this._updateMap();
     } catch (err) {
@@ -1433,18 +1440,34 @@ class GoogleFindMyCard extends LitElement {
   _updateMap() {
     if (!this._leafletLoaded || !window.L) return;
 
+    // Initialize retry counter if not exists
+    if (!this._mapRetryCount) this._mapRetryCount = 0;
+
     // Wait for the map container to be in the DOM and have dimensions
     setTimeout(() => {
       const mapContainer = this.shadowRoot.querySelector('#leaflet-map');
-      if (!mapContainer) return;
+      if (!mapContainer) {
+        this._mapRetryCount = 0;
+        return;
+      }
 
       // Check if container has dimensions
       const rect = mapContainer.getBoundingClientRect();
       if (rect.width === 0 || rect.height === 0) {
-        console.warn('[GoogleFindMy] Map container has no dimensions, retrying...');
-        setTimeout(() => this._updateMap(), 200);
+        // Limit retries to prevent infinite loop (max 5 attempts = 1 second)
+        if (this._mapRetryCount < 5) {
+          this._mapRetryCount++;
+          console.warn(`[GoogleFindMy] Map container has no dimensions, retry ${this._mapRetryCount}/5...`);
+          setTimeout(() => this._updateMap(), 200);
+        } else {
+          console.warn('[GoogleFindMy] Map container never got dimensions, giving up (likely in preview/hidden state)');
+          this._mapRetryCount = 0;
+        }
         return;
       }
+
+      // Reset retry counter on success
+      this._mapRetryCount = 0;
 
       // Get current device
       const devices = this._getDevices();
@@ -1740,9 +1763,10 @@ class GoogleFindMyCard extends LitElement {
       title: "Find My Devices",
       show_last_seen: true,
       show_location_name: true,
-      enable_actions: true,
+      show_coordinates: true,
+      enable_actions: false,
       keep_device_list_pinned: false,
-      show_path_lines: true,
+      show_path_lines: false,
       use_leaflet_map: true,
       filter_keywords: ""
     };
@@ -1763,7 +1787,10 @@ class GoogleFindMyCard extends LitElement {
   }
 }
 
-customElements.define("googlefindmy-card", GoogleFindMyCard);
+// Only define if not already defined
+if (!customElements.get("googlefindmy-card")) {
+  customElements.define("googlefindmy-card", GoogleFindMyCard);
+}
 
 // Card Editor
 class GoogleFindMyCardEditor extends LitElement {
@@ -1813,12 +1840,16 @@ class GoogleFindMyCardEditor extends LitElement {
       ha-formfield {
         padding: 8px 16px;
       }
+      ha-textfield {
+        width: 100%;
+        display: block;
+      }
     `;
   }
 
   render() {
-    if (!this.hass || !this._helpers) {
-      return html``;
+    if (!this.hass) {
+      return html`<div>Loading...</div>`;
     }
 
     const entities = this._getEntities();
@@ -1950,7 +1981,7 @@ class GoogleFindMyCardEditor extends LitElement {
   }
 
   _valueChanged(ev) {
-    if (!this._config || !this.hass) return;
+    if (!this._config) return;
     const target = ev.target;
     const configValue = target.configValue;
 
@@ -2015,18 +2046,25 @@ class GoogleFindMyCardEditor extends LitElement {
   }
 }
 
-customElements.define("googlefindmy-card-editor", GoogleFindMyCardEditor);
+// Only define if not already defined
+if (!customElements.get("googlefindmy-card-editor")) {
+  customElements.define("googlefindmy-card-editor", GoogleFindMyCardEditor);
+}
 
-// Register the card
+// Register the card (only once)
 window.customCards = window.customCards || [];
-window.customCards.push({
-  type: "googlefindmy-card",
-  name: "Google Find My Device Card",
-  description: "A custom card for Google Find My Device integration with map support and device actions"
-});
+if (!window.customCards.find(card => card.type === "googlefindmy-card")) {
+  window.customCards.push({
+    type: "googlefindmy-card",
+    name: "Google Find My Device Card",
+    description: "A custom card for Google Find My Device integration with map support and device actions",
+    preview: true,
+    documentationURL: "https://github.com/BSkando/GoogleFindMy-Card"
+  });
+}
 
 console.info(
-  `%c GOOGLE-FINDMY-CARD %c Version 1.0.6 `,
+  `%c GOOGLE-FINDMY-CARD %c Version 1.1.0 `,
   'color: white; font-weight: bold; background: #1a73e8',
   'color: #1a73e8; font-weight: bold; background: #f0f0f0'
 );
