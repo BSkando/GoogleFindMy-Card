@@ -69,9 +69,11 @@ A beautiful, feature-rich Lovelace card for the Google Find My Device integratio
 
 ### Manual Installation
 
-1. Download `googlefindmy-card.js`
-2. Place it in `/config/www/community/googlefindmy-card/`
-3. Add the resource to your Lovelace configuration (Settings -> Dashboards -> 3-dot menu -> Resources -> Add resource):
+1. In Home Assistant → HACS → Frontend
+2. Click ⋮ menu → Custom repositories
+3. Add your GitHub repo URL
+4. Select category: Dashboard
+5. Click Add
 
 ```yaml
 resources:
