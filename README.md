@@ -1,6 +1,6 @@
-# Google FindMy Device (Find Hub) - Home Assistant Lovelace Card <img src="https://github.com/BSkando/GoogleFindMy-HA/blob/main/icon.png" width="30"> 
+# Google FindMy Device (Find Hub) - Home Assistant Dashboard Card <img src="https://github.com/BSkando/GoogleFindMy-HA/blob/main/icon.png" width="30"> 
 
-A beautiful, feature-rich Lovelace card for the Google Find My Device integration with interactive Leaflet maps, location history tracking, and an intuitive visual editor.
+A beautiful, feature-rich card for the Google Find My Device integration with interactive Leaflet maps, location history tracking, and an intuitive visual editor.
 
 ## Features
 
@@ -58,22 +58,21 @@ A beautiful, feature-rich Lovelace card for the Google Find My Device integratio
 
 ## Installation
 
-~~### HACS (Recommended)~~
+### HACS (Recommended)
 
-~~1. Open HACS in Home Assistant
-2. Go to "Frontend" section
-3. Click the "+" button
-4. Search for "Google Find My Device Card"
-5. Install the card
-6. Add the card to your Lovelace dashboard~~
+1. Click the button below and select 'add'\
+[![Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=BSkando&repository=GoogleFindMy-Card&category=plugin)
+1. Download the card in HACS
+1. Add the card to your Home Assistant dashboard
 
 ### Manual Installation
+In case you don't have [Home Assistant My links](https://www.home-assistant.io/integrations/my/) enabled (it is by default).
 
 1. In Home Assistant → HACS → Frontend
-2. Click ⋮ menu → Custom repositories
-3. Add `https://github.com/BSkando/GoogleFindMy-Card` repo URL
-4. Select category: Dashboard
-5. Click Add
+1. Click ⋮ menu → Custom repositories
+1. Add `https://github.com/BSkando/GoogleFindMy-Card` repo URL
+1. Select category: Dashboard
+1. Click Add
 
 ## Configuration
 
