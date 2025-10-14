@@ -66,8 +66,7 @@ A beautiful, feature-rich card for the Google Find My Device integration with in
 1. Add the card to your Home Assistant dashboard
 
 ### Manual Installation
-In case you don't have [Home Assistant My links 
-](https://www.home-assistant.io/integrations/my/) enabled (it is by default).
+In case you don't have [Home Assistant My links](https://www.home-assistant.io/integrations/my/) enabled (it is by default).
 
 1. In Home Assistant → HACS → Frontend
 1. Click ⋮ menu → Custom repositories
