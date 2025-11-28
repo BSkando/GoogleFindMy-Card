@@ -1602,7 +1602,7 @@ class GoogleFindMyCard extends LitElement {
           }
 
           // Create popup matching Map View
-          const timestamp = new Date(loc.timestamp).toLocaleString();
+          const timestamp = new Date(loc.timestamp * 1000).toLocaleString();
           const popupContent = `
             <div style="min-width: 200px;">
               <b>Location ${index + 1}</b><br>
