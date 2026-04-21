@@ -2,6 +2,10 @@
 
 A beautiful, feature-rich card for the Google Find My Device integration with interactive Leaflet maps, location history tracking, and an intuitive visual editor.
 
+<img width="507" height="407" alt="image" src="https://github.com/user-attachments/assets/fb2bc324-b80a-4be1-987f-3aa8b3e6b455" />
+<img width="508" height="409" alt="image" src="https://github.com/user-attachments/assets/826051c2-9a97-42f5-81cd-2c4ff439d2b1" />
+<img width="511" height="410" alt="image" src="https://github.com/user-attachments/assets/56ea8cda-114c-4788-a73a-5792370fc938" />
+
 ## Features
 
 ### 🗺️ **Interactive Leaflet Maps**
