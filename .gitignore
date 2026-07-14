@@ -1,5 +1,6 @@
 node_modules/
-dist/
+dist/*.map
+dist/*.d.ts
 .DS_Store
 *.log
 npm-debug.log*
