@@ -1,0 +1,52 @@
+name: Build & Release
+
+on:
+  push:
+    branches: [develop, main]
+    tags:
+      - 'v*'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build card
+        run: npm run build
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: googlefindmy-card.js
+          path: dist/googlefindmy-card.js
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: googlefindmy-card.js
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: googlefindmy-card.js
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

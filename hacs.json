@@ -1,6 +1,8 @@
 {
-  "name": "Google FindMy Device Card",
+  "name": "GoogleFindMy Card Enhanced",
   "render_readme": true,
   "filename": "googlefindmy-card.js",
-  "content_in_root": true
+  "content_in_root": true,
+  "homeassistant": "2024.1",
+  "documentation": "https://github.com/davicho16/GoogleFindMy-Card-Enhanced/blob/develop/README.md"
 }
