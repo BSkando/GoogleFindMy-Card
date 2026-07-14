@@ -1,8 +1,11 @@
 {
   "name": "GoogleFindMy Card Enhanced",
+  "hacs": "1.0",
+  "domains": ["device_tracker"],
+  "iot_class": "local_polling",
+  "homeassistant": "2024.1",
   "render_readme": true,
   "filename": "googlefindmy-card.js",
   "content_in_root": true,
-  "homeassistant": "2024.1",
-  "documentation": "https://github.com/davicho16/GoogleFindMy-Card-Enhanced/blob/develop/README.md"
+  "documentation": "https://github.com/davicho16/GoogleFindMy-Card-Enhanced"
 }
