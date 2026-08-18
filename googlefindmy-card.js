@@ -1565,7 +1565,8 @@ class GoogleFindMyCard extends LitElement {
         L.tileLayer(tileUrl, {
           attribution: tileAttribution,
           maxZoom: 19,
-          errorTileUrl: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=='
+          errorTileUrl: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
+          referrerPolicy: 'origin'
         }).addTo(this._mapInstance);
 
         // Wait for tiles to render before invalidating size
