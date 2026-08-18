@@ -55,8 +55,9 @@ A beautiful, feature-rich card for the Google Find My Device integration with in
 
 ### 🎛️ **Visual Editor**
 - Easy-to-use configuration interface
-- Auto-discovery of GPS-enabled device trackers
-- Filter keywords to find specific devices (e.g., "googlefindmy")
+- Automatically discover GPS-enabled device trackers, including devices added later
+- Hide individual automatically discovered devices without removing their configuration
+- Filter keywords to limit automatic discovery (e.g., "googlefindmy")
 - Toggle switches for all display options
 - No YAML editing required
 
@@ -86,7 +87,8 @@ The card includes a visual configuration editor. Simply:
 
 1. Add the card type "Google Find My Device Card"
 2. Use the visual editor to:
-   - Select which devices to display
+   - Enable **Automatically add new GPS devices** for automatic discovery
+   - Select which devices to display in manual mode, or hide individual devices in automatic mode
    - Toggle display options
    - Customize the card title
 
@@ -97,21 +99,23 @@ For advanced users, here's the full YAML configuration:
 ```yaml
 type: custom:googlefindmy-card
 title: "My Devices"                    # Optional: Card title
-entities:                              # Required: List of device tracker entities
-  - device_tracker.iphone
-  - device_tracker.airpods
-  - entity: device_tracker.keys
-    name: "My Keys"                    # Optional: Custom name
-    icon: mdi:key                      # Optional: Custom icon
+auto_discover: true                     # New cards default to true; existing cards remain manual until enabled
+filter_keywords: "googlefindmy"         # Optional: Limit automatic discovery by entity ID
+hidden_entities:                        # Optional: Automatically discovered devices to hide
+  - device_tracker.googlefindmy_airpods
+entities:                               # Optional metadata for discovered devices, or manual allowlist when auto_discover is false
+  - entity: device_tracker.googlefindmy_phone
+    name: "My Phone"                   # Optional: Custom name
+    icon: mdi:cellphone                 # Optional: Custom icon
 
 # Display Options (all optional)
 show_last_seen: true                   # Show last seen timestamps
 show_location_name: true               # Show location names in device cards
 enable_actions: true                   # Enable action buttons (Play Sound)
 keep_device_list_pinned: false         # Keep device sidebar always open
+show_history: true                     # Show historical points; false keeps only the current location
 show_path_lines: true                  # Show path lines connecting history points
 use_leaflet_map: true                  # Use Leaflet maps (set false for iframe fallback)
-filter_keywords: ""                    # Comma-separated keywords to filter devices
 ```
 
 ## Card Options
@@ -119,14 +123,17 @@ filter_keywords: ""                    # Comma-separated keywords to filter devi
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
 | `title` | string | "Find My Devices" | Card title displayed in header |
-| `entities` | list | **Required** | List of device tracker entities to display |
+| `auto_discover` | boolean | `true` for new cards | Discover eligible GPS `device_tracker` entities from Home Assistant. Existing cards without this option remain in manual mode. |
+| `entities` | list | `[]` | Manual-mode allowlist. In automatic mode, matching object entries supply custom names and icons. |
+| `hidden_entities` | list | `[]` | Entity IDs to exclude from automatic discovery. Hidden IDs remain stored while an entity is unavailable. |
 | `show_last_seen` | boolean | `true` | Show last seen timestamps on device cards |
 | `show_location_name` | boolean | `true` | Show location names on device cards |
 | `enable_actions` | boolean | `true` | Enable "Play Sound" action button |
 | `keep_device_list_pinned` | boolean | `false` | Keep device sidebar permanently open |
+| `show_history` | boolean | `true` | Show historical Leaflet points. Set to `false` to display only the current live location without recorder history requests. |
 | `show_path_lines` | boolean | `true` | Draw lines connecting historical location points |
 | `use_leaflet_map` | boolean | `true` | Use Leaflet interactive maps (false = iframe fallback) |
-| `filter_keywords` | string | `""` | Comma-separated keywords to filter device entities (e.g., "googlefindmy,iphone") |
+| `filter_keywords` | string | `""` | Comma-separated entity-ID keywords that limit automatic GPS-device discovery (e.g., "googlefindmy,iphone") |
 
 ## Entity Configuration
 
@@ -143,6 +150,8 @@ entities:
 ## Examples
 
 ### Basic Configuration
+This legacy/manual configuration displays only the saved `entities` list. Cards created before `auto_discover` was introduced keep this behavior until it is explicitly enabled.
+
 ```yaml
 type: custom:googlefindmy-card
 entities:
@@ -182,11 +191,25 @@ keep_device_list_pinned: true
 show_path_lines: true
 ```
 
-### Filter Specific Integration
+### Automatically Discover and Hide Devices
 ```yaml
 type: custom:googlefindmy-card
 title: "Google Find My Devices"
-filter_keywords: "googlefindmy"  # Only show Google Find My devices
+auto_discover: true
+filter_keywords: "googlefindmy"  # Only discover Google Find My devices
+hidden_entities:
+  - device_tracker.googlefindmy_airpods
+entities:
+  - device_tracker.googlefindmy_iphone
+    name: "My Phone"              # Optional metadata for an auto-discovered device
+    icon: mdi:cellphone
+```
+
+### Filter Specific Integration (Manual)
+```yaml
+type: custom:googlefindmy-card
+title: "Google Find My Devices"
+filter_keywords: "googlefindmy"  # Used by the editor; manual mode uses the explicit allowlist
 entities:
   - device_tracker.googlefindmy_iphone
   - device_tracker.googlefindmy_airpods
@@ -194,7 +217,7 @@ entities:
 
 ## Using the Filter Panel
 
-The card includes a powerful filter panel for controlling location history display:
+When `show_history` is enabled, the card includes a filter panel for controlling location history display. The panel is hidden when `show_history: false`; saved filter settings remain available if history is enabled again.
 
 1. **Access Filters**: Click the device list toggle button to show devices, select a device
 2. **Open Filter Panel**: The filter panel appears in the top-right corner with a "📅 Filters" button
@@ -209,6 +232,7 @@ The card includes a powerful filter panel for controlling location history displ
 - **Historical Locations**: Marked with smaller blue pins at 75% size
 - **Path Lines**: Blue lines connect historical points in chronological order
 - **Accuracy Circles**: Semi-transparent circles show GPS accuracy
+- **Current-Location-Only Mode**: Set `show_history: false` to render only the live red marker and its accuracy circle. This applies to the card's Leaflet map and does not control content in an external `configuration_url` iframe.
 - **Popup Information**: Click any marker to see:
   - Coordinates
   - GPS accuracy
@@ -232,7 +256,7 @@ The card uses CSS custom properties for theming and will automatically adapt to 
 
 - Home Assistant 2023.1 or newer
 - Google Find My Device integration (or any GPS-enabled device_tracker)
-- Recorder integration enabled (for location history)
+- Recorder integration enabled when `show_history` is enabled (not required for current-location-only mode)
 - Modern browser with ES6 module support
 - Internet connection for OpenStreetMap tiles and Leaflet.js CDN
 
@@ -241,8 +265,8 @@ The card uses CSS custom properties for theming and will automatically adapt to 
 ### No devices showing
 - Ensure you have GPS-enabled device_tracker entities
 - Check that device tracker entities exist in Developer Tools → States
-- Verify entity names in card configuration
-- Try using `filter_keywords` in the visual editor to find your devices
+- In manual mode, verify entity names in the `entities` allowlist
+- In automatic mode, verify `filter_keywords` matches the entity ID and the device is not in `hidden_entities`
 
 ### Map not loading
 - Check browser console for JavaScript errors
@@ -251,6 +275,7 @@ The card uses CSS custom properties for theming and will automatically adapt to 
 - Try disabling browser extensions that might block external resources
 
 ### Location history not showing
+- Confirm `show_history` is enabled
 - Verify Home Assistant recorder integration is enabled
 - Check that your device has historical location data in Developer Tools → History
 - Try selecting a longer time range (7 days instead of 1 day)
