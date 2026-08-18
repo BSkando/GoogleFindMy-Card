@@ -197,6 +197,47 @@ class GoogleFindMyCard extends LitElement {
         font-family: 'Google Sans', 'Roboto', sans-serif;
         height: 100%;
         overflow: hidden;
+        --gfmc-bg: #ffffff;
+        --gfmc-bg-overlay: rgba(255, 255, 255, 0.95);
+        --gfmc-bg-overlay-light: rgba(255, 255, 255, 0.8);
+        --gfmc-bg-surface: #ffffff;
+        --gfmc-bg-hover: #f8f9fa;
+        --gfmc-bg-control: #f1f3f4;
+        --gfmc-bg-control-hover: #e8eaed;
+        --gfmc-bg-map: #f8f9fa;
+        --gfmc-text: #202124;
+        --gfmc-text-secondary: #5f6368;
+        --gfmc-text-link: #1a73e8;
+        --gfmc-border: #e8eaed;
+        --gfmc-border-control: #dadce0;
+        --gfmc-border-light: #e0e0e0;
+        --gfmc-shadow: rgba(0,0,0,0.1);
+        --gfmc-shadow-strong: rgba(0,0,0,0.15);
+        --gfmc-divider: #ccc;
+        --gfmc-disabled-bg: #f4f4f4;
+        --gfmc-disabled-text: #bbb;
+      }
+
+      :host(.dark) {
+        --gfmc-bg: #1e1e1e;
+        --gfmc-bg-overlay: rgba(30, 30, 30, 0.95);
+        --gfmc-bg-overlay-light: rgba(30, 30, 30, 0.85);
+        --gfmc-bg-surface: #2a2a2a;
+        --gfmc-bg-hover: #3c4043;
+        --gfmc-bg-control: #3c4043;
+        --gfmc-bg-control-hover: #555;
+        --gfmc-bg-map: #1a1a1a;
+        --gfmc-text: #e8eaed;
+        --gfmc-text-secondary: #9aa0a6;
+        --gfmc-text-link: #8ab4f8;
+        --gfmc-border: #444;
+        --gfmc-border-control: #444;
+        --gfmc-border-light: #444;
+        --gfmc-shadow: rgba(0,0,0,0.3);
+        --gfmc-shadow-strong: rgba(0,0,0,0.3);
+        --gfmc-divider: #444;
+        --gfmc-disabled-bg: #2a2a2a;
+        --gfmc-disabled-text: #666;
       }
 
       /* Lower z-index for edit mode compatibility */
@@ -215,10 +256,10 @@ class GoogleFindMyCard extends LitElement {
         overflow: hidden;
         padding: 0;
         box-sizing: border-box;
-        background: #ffffff;
+        background: var(--gfmc-bg);
         border: none;
         border-radius: 16px;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        box-shadow: 0 2px 8px var(--gfmc-shadow);
       }
 
       .card-header {
@@ -230,11 +271,11 @@ class GoogleFindMyCard extends LitElement {
         display: flex;
         align-items: center;
         justify-content: space-between;
-        background: rgba(255, 255, 255, 0.95);
+        background: var(--gfmc-bg-overlay);
         backdrop-filter: blur(10px);
         border-radius: 8px;
         padding: 8px 12px;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        box-shadow: 0 2px 8px var(--gfmc-shadow);
         height: 60px;
         box-sizing: border-box;
       }
@@ -242,7 +283,7 @@ class GoogleFindMyCard extends LitElement {
       .card-title {
         font-size: 18px;
         font-weight: 500;
-        color: #202124;
+        color: var(--gfmc-text);
         display: flex;
         align-items: center;
         gap: 8px;
@@ -269,20 +310,20 @@ class GoogleFindMyCard extends LitElement {
         width: 36px;
         height: 36px;
         border-radius: 18px;
-        background: #ffffff;
-        border: 1px solid #dadce0;
+        background: var(--gfmc-bg-surface);
+        border: 1px solid var(--gfmc-border-control);
         cursor: pointer;
         display: flex;
         align-items: center;
         justify-content: center;
         transition: all 0.2s ease;
-        color: #5f6368;
+        color: var(--gfmc-text-secondary);
         position: relative;
       }
 
       .control-button:hover {
-        background: #f8f9fa;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        background: var(--gfmc-bg-hover);
+        box-shadow: 0 2px 4px var(--gfmc-shadow);
       }
 
       .control-button.active {
@@ -309,7 +350,7 @@ class GoogleFindMyCard extends LitElement {
         width: 100%;
         min-height: 0;
         position: relative;
-        background: #f8f9fa;
+        background: var(--gfmc-bg-map);
         overflow: hidden;
       }
 
@@ -499,11 +540,16 @@ class GoogleFindMyCard extends LitElement {
         bottom: 0;
         left: 50%;
         transform: translateX(-50%);
-        background: rgba(255, 255, 255, 0.8);
+        background: var(--gfmc-bg-overlay-light) !important;
+        color: var(--gfmc-text-secondary) !important;
         padding: 0 8px;
         font-size: 11px;
         text-align: center;
         margin: 0 !important;
+      }
+
+      .leaflet-control-attribution a {
+        color: var(--gfmc-text-link) !important;
       }
 
       .leaflet-bottom.leaflet-right {
@@ -522,24 +568,25 @@ class GoogleFindMyCard extends LitElement {
 
       /* Zoom control */
       .leaflet-bar {
-        box-shadow: 0 1px 5px rgba(0,0,0,0.65);
+        box-shadow: 0 1px 5px var(--gfmc-shadow) !important;
         border-radius: 4px;
+        border-color: var(--gfmc-border) !important;
       }
 
       .leaflet-bar a {
-        background-color: #fff;
-        border-bottom: 1px solid #ccc;
+        background-color: var(--gfmc-bg-surface) !important;
+        border-bottom: 1px solid var(--gfmc-border) !important;
         width: 26px;
         height: 26px;
         line-height: 26px;
         display: block;
         text-align: center;
         text-decoration: none;
-        color: black;
+        color: var(--gfmc-text) !important;
       }
 
       .leaflet-bar a:hover {
-        background-color: #f4f4f4;
+        background-color: var(--gfmc-bg-hover) !important;
       }
 
       .leaflet-bar a:first-child {
@@ -555,8 +602,8 @@ class GoogleFindMyCard extends LitElement {
 
       .leaflet-bar a.leaflet-disabled {
         cursor: default;
-        background-color: #f4f4f4;
-        color: #bbb;
+        background-color: var(--gfmc-disabled-bg) !important;
+        color: var(--gfmc-disabled-text) !important;
       }
 
       .leaflet-touch .leaflet-bar a {
@@ -578,21 +625,21 @@ class GoogleFindMyCard extends LitElement {
 
       .leaflet-popup-content-wrapper {
         border-radius: 12px;
-        background: #ffffff;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.15);
-        border: 1px solid #e8eaed;
+        background: var(--gfmc-bg-surface);
+        box-shadow: 0 2px 8px var(--gfmc-shadow-strong);
+        border: 1px solid var(--gfmc-border);
       }
 
       .leaflet-popup-content {
         margin: 12px;
         font-size: 13px;
         font-family: 'Google Sans', 'Roboto', sans-serif;
-        color: #202124;
+        color: var(--gfmc-text);
       }
 
       .leaflet-popup-tip {
-        background: #ffffff;
-        border: 1px solid #e8eaed;
+        background: var(--gfmc-bg-surface);
+        border: 1px solid var(--gfmc-border);
       }
 
       /* Filter panel for map controls */
@@ -601,13 +648,14 @@ class GoogleFindMyCard extends LitElement {
         top: 80px;
         right: 12px;
         z-index: 1000;
-        background: rgba(255, 255, 255, 0.95);
+        background: var(--gfmc-bg-overlay);
         backdrop-filter: blur(10px);
         padding: 12px;
         border-radius: 12px;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        box-shadow: 0 2px 8px var(--gfmc-shadow);
         max-width: 300px;
         font-size: 13px;
+        color: var(--gfmc-text);
       }
 
       .filter-panel.collapsed {
@@ -641,7 +689,7 @@ class GoogleFindMyCard extends LitElement {
       .filter-section {
         margin: 12px 0;
         padding-bottom: 12px;
-        border-bottom: 1px solid #e0e0e0;
+        border-bottom: 1px solid var(--gfmc-border-light);
       }
 
       .filter-section:last-child {
@@ -661,12 +709,13 @@ class GoogleFindMyCard extends LitElement {
       }
 
       .time-range-btn {
-        background: #f1f3f4;
+        background: var(--gfmc-bg-control);
         border: none;
         padding: 6px 12px;
         border-radius: 6px;
         cursor: pointer;
         font-size: 12px;
+        color: var(--gfmc-text);
         flex: 1;
         min-width: 50px;
       }
@@ -677,7 +726,7 @@ class GoogleFindMyCard extends LitElement {
       }
 
       .time-range-btn:hover {
-        background: #e8eaed;
+        background: var(--gfmc-bg-control-hover);
       }
 
       .time-range-btn.active:hover {
@@ -711,11 +760,11 @@ class GoogleFindMyCard extends LitElement {
         top: 80px;
         bottom: 12px;
         width: 200px;
-        background: rgba(255, 255, 255, 0.95);
+        background: var(--gfmc-bg-overlay);
         backdrop-filter: blur(10px);
         border-radius: 12px;
         padding: 16px;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        box-shadow: 0 2px 8px var(--gfmc-shadow);
         z-index: 1;
         overflow-y: auto;
         transform: translateX(-340px);
@@ -733,9 +782,9 @@ class GoogleFindMyCard extends LitElement {
       }
 
       .device-card {
-        background: #ffffff;
+        background: var(--gfmc-bg-surface);
         border-radius: 12px;
-        border: 1px solid #e8eaed;
+        border: 1px solid var(--gfmc-border);
         padding: 12px 16px;
         cursor: pointer;
         transition: all 0.2s ease;
@@ -774,7 +823,7 @@ class GoogleFindMyCard extends LitElement {
       .device-name {
         font-size: 16px;
         font-weight: 500;
-        color: #202124;
+        color: var(--gfmc-text);
         margin-bottom: 2px;
         font-family: 'Google Sans', sans-serif;
         white-space: nowrap;
@@ -793,7 +842,7 @@ class GoogleFindMyCard extends LitElement {
         align-items: center;
         gap: 6px;
         font-size: 12px;
-        color: #5f6368;
+        color: var(--gfmc-text-secondary);
       }
 
       .status-dot {
@@ -817,7 +866,7 @@ class GoogleFindMyCard extends LitElement {
 
       .device-location {
         font-size: 12px;
-        color: #5f6368;
+        color: var(--gfmc-text-secondary);
         margin-top: 4px;
         white-space: nowrap;
         overflow: hidden;
@@ -826,7 +875,7 @@ class GoogleFindMyCard extends LitElement {
 
       .last-seen {
         font-size: 11px;
-        color: #9aa0a6;
+        color: var(--gfmc-text-secondary);
         margin-top: 2px;
       }
 
@@ -861,20 +910,20 @@ class GoogleFindMyCard extends LitElement {
       }
 
       .action-button.secondary {
-        background: #ffffff;
-        color: #1a73e8;
-        border: 1px solid #dadce0;
+        background: var(--gfmc-bg-surface);
+        color: var(--gfmc-text-link);
+        border: 1px solid var(--gfmc-border-control);
       }
 
       .action-button.secondary:hover {
-        background: #f8f9fa;
+        background: var(--gfmc-bg-hover);
       }
 
       .no-devices {
         text-align: center;
         padding: 48px 24px;
-        color: #5f6368;
-        background: rgba(255, 255, 255, 0.95);
+        color: var(--gfmc-text-secondary);
+        background: var(--gfmc-bg-overlay);
         backdrop-filter: blur(10px);
         border-radius: 12px;
         margin: 80px 16px 16px 16px;
@@ -990,7 +1039,7 @@ class GoogleFindMyCard extends LitElement {
           align-items: center !important;
           gap: 6px !important;
           font-size: 11px !important;
-          color: #5f6368 !important;
+          color: var(--gfmc-text-secondary) !important;
         }
 
         .status-dot {
@@ -1029,9 +1078,12 @@ class GoogleFindMyCard extends LitElement {
       keep_device_list_pinned: false,
       show_path_lines: false,
       use_leaflet_map: true,
+      dark_mode: true,
       ...config,
       entities, // Override with validated entities array
     };
+
+    this.classList.toggle('dark', this.config.dark_mode !== false);
   }
 
   render() {
@@ -1097,7 +1149,7 @@ class GoogleFindMyCard extends LitElement {
     if (!entity || !entity.attributes.latitude) {
       return html`
         <div class="map-container">
-          <div style="display: flex; align-items: center; justify-content: center; height: 100%; color: #5f6368;">
+          <div style="display: flex; align-items: center; justify-content: center; height: 100%; color: var(--gfmc-text-secondary);">
             <div style="text-align: center;">
               <ha-icon icon="mdi:map-marker-off" style="width: 48px; height: 48px; opacity: 0.5;"></ha-icon>
               <p>Location not available</p>
@@ -1129,7 +1181,7 @@ class GoogleFindMyCard extends LitElement {
             @error=${() => this._handleMapError(entity.entity_id)}>
           </iframe>
         ` : html`
-          <div style="display: flex; align-items: center; justify-content: center; height: 100%; color: #5f6368;">
+          <div style="display: flex; align-items: center; justify-content: center; height: 100%; color: var(--gfmc-text-secondary);">
             <div style="text-align: center;">
               <ha-icon icon="mdi:map-marker-off" style="width: 48px; height: 48px; opacity: 0.5;"></ha-icon>
               <p>Map unavailable</p>
@@ -1502,9 +1554,16 @@ class GoogleFindMyCard extends LitElement {
           zoomControl: true
         }).setView([lat, lon], 13);
 
-        // Add OpenStreetMap tiles with error handling
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-          attribution: '© OpenStreetMap contributors',
+        // Add map tiles based on dark mode setting
+        const isDark = this.config?.dark_mode !== false;
+        const tileUrl = isDark
+          ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png'
+          : 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
+        const tileAttribution = isDark
+          ? '© OpenStreetMap contributors © CARTO'
+          : '© OpenStreetMap contributors';
+        L.tileLayer(tileUrl, {
+          attribution: tileAttribution,
           maxZoom: 19,
           errorTileUrl: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=='
         }).addTo(this._mapInstance);
@@ -1940,6 +1999,14 @@ class GoogleFindMyCardEditor extends LitElement {
               <ha-switch
                 .checked=${this._config.show_path_lines !== false}
                 .configValue=${"show_path_lines"}
+                @change=${this._valueChanged}
+              ></ha-switch>
+            </ha-formfield>
+
+            <ha-formfield label="Dark Mode">
+              <ha-switch
+                .checked=${this._config.dark_mode !== false}
+                .configValue=${"dark_mode"}
                 @change=${this._valueChanged}
               ></ha-switch>
             </ha-formfield>
