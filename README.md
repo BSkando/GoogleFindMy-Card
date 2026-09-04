@@ -12,6 +12,7 @@ A beautiful, feature-rich card for the Google Find My Device integration with in
 - GPS accuracy circles around each location point
 - Interactive popups with detailed location information
 - Path visualization connecting historical locations
+- **Dark mode map tiles** via CARTO Dark Matter (free API key)
 
 ### 📍 **Location History Tracking**
 - Fetch and display location history from Home Assistant recorder
@@ -108,6 +109,8 @@ keep_device_list_pinned: false         # Keep device sidebar always open
 show_path_lines: true                  # Show path lines connecting history points
 use_leaflet_map: true                  # Use Leaflet maps (set false for iframe fallback)
 filter_keywords: ""                    # Comma-separated keywords to filter devices
+dark_mode: true                        # Enable dark mode (default: true)
+carto_key: ""                          # CARTO API key for dark map tiles (optional)
 ```
 
 ## Card Options
@@ -123,6 +126,8 @@ filter_keywords: ""                    # Comma-separated keywords to filter devi
 | `show_path_lines` | boolean | `true` | Draw lines connecting historical location points |
 | `use_leaflet_map` | boolean | `true` | Use Leaflet interactive maps (false = iframe fallback) |
 | `filter_keywords` | string | `""` | Comma-separated keywords to filter device entities (e.g., "googlefindmy,iphone") |
+| `dark_mode` | boolean | `true` | Enable dark mode for the card |
+| `carto_key` | string | `""` | CARTO API key for dark map tiles (see [Dark Mode](DARK_MODE.md)) |
 
 ## Entity Configuration
 
@@ -223,6 +228,18 @@ The card uses CSS custom properties for theming and will automatically adapt to 
 --secondary-text-color: Secondary text
 --divider-color: Borders and dividers
 ```
+
+## Dark Mode
+
+Home Assistant's built-in dark mode applies CSS filters to map tiles, which produces faded, washed-out colors rather than a proper dark map. This card uses **CARTO Dark Matter** tiles for a professionally designed dark basemap with dark backgrounds, muted roads, and readable labels.
+
+### Quick Setup
+
+1. Get a free API key at [carto.com/basemaps/apikey](https://carto.com/basemaps/apikey/) (no credit card required)
+2. Paste the key in the card editor under **CARTO API Key**
+3. Ensure **Dark Mode** is enabled
+
+See [DARK_MODE.md](DARK_MODE.md) for full details, limits, and troubleshooting.
 
 ## Requirements
 

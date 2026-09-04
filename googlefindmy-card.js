@@ -27,6 +27,61 @@ const loadLeaflet = () => {
   });
 };
 
+const getConfiguredEntityId = (entry) => {
+  if (typeof entry === 'string') return entry;
+  if (entry && typeof entry === 'object') {
+    if (typeof entry.entity_id === 'string') return entry.entity_id;
+    if (typeof entry.entity === 'string') return entry.entity;
+  }
+  return null;
+};
+
+const normalizeConfiguredEntities = (entities) => {
+  if (!Array.isArray(entities)) return [];
+
+  return entities.reduce((normalized, entry) => {
+    const entityId = getConfiguredEntityId(entry);
+    if (!entityId) return normalized;
+
+    normalized.push(typeof entry === 'string' ? { entity_id: entityId } : { ...entry, entity_id: entityId });
+    return normalized;
+  }, []);
+};
+
+const normalizeEntityIds = (entityIds) => Array.isArray(entityIds)
+  ? entityIds.filter(entityId => typeof entityId === 'string')
+  : [];
+
+const getFilterKeywords = (filterKeywords) => String(filterKeywords || '')
+  .split(',')
+  .map(keyword => keyword.trim().toLowerCase())
+  .filter(Boolean);
+
+const discoverEligibleDevices = (hass, filterKeywords) => {
+  const states = hass?.states;
+  if (!states) return [];
+
+  const keywords = getFilterKeywords(filterKeywords);
+  return Object.entries(states).reduce((devices, [entityId, entity]) => {
+    const attributes = entity?.attributes || {};
+    const matchesKeyword = keywords.length === 0 || keywords.some(keyword =>
+      entityId.toLowerCase().includes(keyword)
+    );
+    const isGpsDevice = entityId.startsWith('device_tracker.') &&
+      (attributes.source_type === 'gps' || attributes.latitude !== undefined);
+
+    if (isGpsDevice && matchesKeyword) {
+      devices.push({ entity_id: entityId, name: attributes.friendly_name || entityId });
+    }
+    return devices;
+  }, []);
+};
+
+const hasUsableCoordinates = (entity) => {
+  const { latitude, longitude } = entity?.attributes || {};
+  return Number.isFinite(latitude) && Number.isFinite(longitude);
+};
+
 class GoogleFindMyCard extends LitElement {
   static get properties() {
     return {
@@ -50,6 +105,7 @@ class GoogleFindMyCard extends LitElement {
     this._mapContainer = null;
     this._leafletLoaded = false;
     this._locationHistory = [];
+    this._historyRequestGeneration = 0;
 
     // Load filter settings from localStorage with defaults
     const savedSettings = this._loadFilterSettings();
@@ -111,10 +167,19 @@ class GoogleFindMyCard extends LitElement {
   set hass(value) {
     const oldHass = this._hass;
     this._hass = value;
+    const devices = this._getDevices();
+    const selectionChanged = this._syncSelectedDevice(devices);
+
+    // Home Assistant state updates are the source for automatic discovery.
+    this.requestUpdate();
+
+    if (devices.length === 0) {
+      this._clearMap();
+      return;
+    }
 
     // Only update map if coordinates changed
-    if (oldHass && this._leafletLoaded && this._selectedDevice) {
-      const devices = this._getDevices();
+    if (oldHass && this._leafletLoaded && this._selectedDevice && !selectionChanged) {
       const selectedDevice = devices.find(d => d.entity_id === this._selectedDevice) || devices[0];
       if (selectedDevice) {
         const oldEntity = oldHass.states[selectedDevice.entity_id];
@@ -140,10 +205,20 @@ class GoogleFindMyCard extends LitElement {
       if (this.config.keep_device_list_pinned) {
         this._showDeviceList = true;
       }
+
+      const devices = this._getDevices();
+      this._syncSelectedDevice(devices);
+      if (devices.length === 0) {
+        this._clearMap();
+      } else if (this._leafletLoaded) {
+        this._fetchLocationHistory();
+        this._updateMap();
+      }
     }
 
     // Initialize or update map when Leaflet loads or selected device changes
-    if ((changedProperties.has('_leafletLoaded') || changedProperties.has('_selectedDevice')) && this._leafletLoaded) {
+    if (!changedProperties.has('config') &&
+        (changedProperties.has('_leafletLoaded') || changedProperties.has('_selectedDevice')) && this._leafletLoaded) {
       // Only update map if we have hass and devices
       const devices = this.hass ? this._getDevices() : [];
       const selectedDevice = this._selectedDevice ?
@@ -171,10 +246,28 @@ class GoogleFindMyCard extends LitElement {
     // Remove resize listener
     window.removeEventListener('resize', this._handleResize);
     // Clean up map instance
+    this._clearMap();
+  }
+
+  _clearMap() {
+    this._historyRequestGeneration++;
     if (this._mapInstance) {
       this._mapInstance.remove();
       this._mapInstance = null;
     }
+    this._locationHistory = [];
+  }
+
+  _syncSelectedDevice(devices = this._getDevices()) {
+    const selectedDevice = devices.find(device => device.entity_id === this._selectedDevice);
+    const nextDeviceId = selectedDevice ? selectedDevice.entity_id : (devices[0]?.entity_id || null);
+
+    if (this._selectedDevice === nextDeviceId) return false;
+
+    this._historyRequestGeneration++;
+    this._selectedDevice = nextDeviceId;
+    this._locationHistory = [];
+    return true;
   }
 
   _handleResize() {
@@ -197,6 +290,47 @@ class GoogleFindMyCard extends LitElement {
         font-family: 'Google Sans', 'Roboto', sans-serif;
         height: 100%;
         overflow: hidden;
+        --gfmc-bg: #ffffff;
+        --gfmc-bg-overlay: rgba(255, 255, 255, 0.95);
+        --gfmc-bg-overlay-light: rgba(255, 255, 255, 0.8);
+        --gfmc-bg-surface: #ffffff;
+        --gfmc-bg-hover: #f8f9fa;
+        --gfmc-bg-control: #f1f3f4;
+        --gfmc-bg-control-hover: #e8eaed;
+        --gfmc-bg-map: #f8f9fa;
+        --gfmc-text: #202124;
+        --gfmc-text-secondary: #5f6368;
+        --gfmc-text-link: #1a73e8;
+        --gfmc-border: #e8eaed;
+        --gfmc-border-control: #dadce0;
+        --gfmc-border-light: #e0e0e0;
+        --gfmc-shadow: rgba(0,0,0,0.1);
+        --gfmc-shadow-strong: rgba(0,0,0,0.15);
+        --gfmc-divider: #ccc;
+        --gfmc-disabled-bg: #f4f4f4;
+        --gfmc-disabled-text: #bbb;
+      }
+
+      :host(.dark) {
+        --gfmc-bg: #1e1e1e;
+        --gfmc-bg-overlay: rgba(30, 30, 30, 0.95);
+        --gfmc-bg-overlay-light: rgba(30, 30, 30, 0.85);
+        --gfmc-bg-surface: #2a2a2a;
+        --gfmc-bg-hover: #3c4043;
+        --gfmc-bg-control: #3c4043;
+        --gfmc-bg-control-hover: #555;
+        --gfmc-bg-map: #1a1a1a;
+        --gfmc-text: #e8eaed;
+        --gfmc-text-secondary: #9aa0a6;
+        --gfmc-text-link: #8ab4f8;
+        --gfmc-border: #444;
+        --gfmc-border-control: #444;
+        --gfmc-border-light: #444;
+        --gfmc-shadow: rgba(0,0,0,0.3);
+        --gfmc-shadow-strong: rgba(0,0,0,0.3);
+        --gfmc-divider: #444;
+        --gfmc-disabled-bg: #2a2a2a;
+        --gfmc-disabled-text: #666;
       }
 
       /* Lower z-index for edit mode compatibility */
@@ -215,10 +349,10 @@ class GoogleFindMyCard extends LitElement {
         overflow: hidden;
         padding: 0;
         box-sizing: border-box;
-        background: #ffffff;
+        background: var(--gfmc-bg);
         border: none;
         border-radius: 16px;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        box-shadow: 0 2px 8px var(--gfmc-shadow);
       }
 
       .card-header {
@@ -230,11 +364,11 @@ class GoogleFindMyCard extends LitElement {
         display: flex;
         align-items: center;
         justify-content: space-between;
-        background: rgba(255, 255, 255, 0.95);
+        background: var(--gfmc-bg-overlay);
         backdrop-filter: blur(10px);
         border-radius: 8px;
         padding: 8px 12px;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        box-shadow: 0 2px 8px var(--gfmc-shadow);
         height: 60px;
         box-sizing: border-box;
       }
@@ -242,7 +376,7 @@ class GoogleFindMyCard extends LitElement {
       .card-title {
         font-size: 18px;
         font-weight: 500;
-        color: #202124;
+        color: var(--gfmc-text);
         display: flex;
         align-items: center;
         gap: 8px;
@@ -269,20 +403,20 @@ class GoogleFindMyCard extends LitElement {
         width: 36px;
         height: 36px;
         border-radius: 18px;
-        background: #ffffff;
-        border: 1px solid #dadce0;
+        background: var(--gfmc-bg-surface);
+        border: 1px solid var(--gfmc-border-control);
         cursor: pointer;
         display: flex;
         align-items: center;
         justify-content: center;
         transition: all 0.2s ease;
-        color: #5f6368;
+        color: var(--gfmc-text-secondary);
         position: relative;
       }
 
       .control-button:hover {
-        background: #f8f9fa;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        background: var(--gfmc-bg-hover);
+        box-shadow: 0 2px 4px var(--gfmc-shadow);
       }
 
       .control-button.active {
@@ -309,7 +443,7 @@ class GoogleFindMyCard extends LitElement {
         width: 100%;
         min-height: 0;
         position: relative;
-        background: #f8f9fa;
+        background: var(--gfmc-bg-map);
         overflow: hidden;
       }
 
@@ -323,7 +457,9 @@ class GoogleFindMyCard extends LitElement {
       #leaflet-map {
         width: 100%;
         height: 100%;
+        position: relative;
         z-index: 0;
+        filter: none;
       }
 
       /* Critical Leaflet CSS - required for proper tile positioning */
@@ -499,11 +635,16 @@ class GoogleFindMyCard extends LitElement {
         bottom: 0;
         left: 50%;
         transform: translateX(-50%);
-        background: rgba(255, 255, 255, 0.8);
+        background: var(--gfmc-bg-overlay-light) !important;
+        color: var(--gfmc-text-secondary) !important;
         padding: 0 8px;
         font-size: 11px;
         text-align: center;
         margin: 0 !important;
+      }
+
+      .leaflet-control-attribution a {
+        color: var(--gfmc-text-link) !important;
       }
 
       .leaflet-bottom.leaflet-right {
@@ -522,24 +663,25 @@ class GoogleFindMyCard extends LitElement {
 
       /* Zoom control */
       .leaflet-bar {
-        box-shadow: 0 1px 5px rgba(0,0,0,0.65);
+        box-shadow: 0 1px 5px var(--gfmc-shadow) !important;
         border-radius: 4px;
+        border-color: var(--gfmc-border) !important;
       }
 
       .leaflet-bar a {
-        background-color: #fff;
-        border-bottom: 1px solid #ccc;
+        background-color: var(--gfmc-bg-surface) !important;
+        border-bottom: 1px solid var(--gfmc-border) !important;
         width: 26px;
         height: 26px;
         line-height: 26px;
         display: block;
         text-align: center;
         text-decoration: none;
-        color: black;
+        color: var(--gfmc-text) !important;
       }
 
       .leaflet-bar a:hover {
-        background-color: #f4f4f4;
+        background-color: var(--gfmc-bg-hover) !important;
       }
 
       .leaflet-bar a:first-child {
@@ -555,8 +697,8 @@ class GoogleFindMyCard extends LitElement {
 
       .leaflet-bar a.leaflet-disabled {
         cursor: default;
-        background-color: #f4f4f4;
-        color: #bbb;
+        background-color: var(--gfmc-disabled-bg) !important;
+        color: var(--gfmc-disabled-text) !important;
       }
 
       .leaflet-touch .leaflet-bar a {
@@ -578,21 +720,21 @@ class GoogleFindMyCard extends LitElement {
 
       .leaflet-popup-content-wrapper {
         border-radius: 12px;
-        background: #ffffff;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.15);
-        border: 1px solid #e8eaed;
+        background: var(--gfmc-bg-surface);
+        box-shadow: 0 2px 8px var(--gfmc-shadow-strong);
+        border: 1px solid var(--gfmc-border);
       }
 
       .leaflet-popup-content {
         margin: 12px;
         font-size: 13px;
         font-family: 'Google Sans', 'Roboto', sans-serif;
-        color: #202124;
+        color: var(--gfmc-text);
       }
 
       .leaflet-popup-tip {
-        background: #ffffff;
-        border: 1px solid #e8eaed;
+        background: var(--gfmc-bg-surface);
+        border: 1px solid var(--gfmc-border);
       }
 
       /* Filter panel for map controls */
@@ -601,13 +743,14 @@ class GoogleFindMyCard extends LitElement {
         top: 80px;
         right: 12px;
         z-index: 1000;
-        background: rgba(255, 255, 255, 0.95);
+        background: var(--gfmc-bg-overlay);
         backdrop-filter: blur(10px);
         padding: 12px;
         border-radius: 12px;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        box-shadow: 0 2px 8px var(--gfmc-shadow);
         max-width: 300px;
         font-size: 13px;
+        color: var(--gfmc-text);
       }
 
       .filter-panel.collapsed {
@@ -641,7 +784,7 @@ class GoogleFindMyCard extends LitElement {
       .filter-section {
         margin: 12px 0;
         padding-bottom: 12px;
-        border-bottom: 1px solid #e0e0e0;
+        border-bottom: 1px solid var(--gfmc-border-light);
       }
 
       .filter-section:last-child {
@@ -661,12 +804,13 @@ class GoogleFindMyCard extends LitElement {
       }
 
       .time-range-btn {
-        background: #f1f3f4;
+        background: var(--gfmc-bg-control);
         border: none;
         padding: 6px 12px;
         border-radius: 6px;
         cursor: pointer;
         font-size: 12px;
+        color: var(--gfmc-text);
         flex: 1;
         min-width: 50px;
       }
@@ -677,7 +821,7 @@ class GoogleFindMyCard extends LitElement {
       }
 
       .time-range-btn:hover {
-        background: #e8eaed;
+        background: var(--gfmc-bg-control-hover);
       }
 
       .time-range-btn.active:hover {
@@ -711,11 +855,11 @@ class GoogleFindMyCard extends LitElement {
         top: 80px;
         bottom: 12px;
         width: 200px;
-        background: rgba(255, 255, 255, 0.95);
+        background: var(--gfmc-bg-overlay);
         backdrop-filter: blur(10px);
         border-radius: 12px;
         padding: 16px;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        box-shadow: 0 2px 8px var(--gfmc-shadow);
         z-index: 1;
         overflow-y: auto;
         transform: translateX(-340px);
@@ -733,9 +877,9 @@ class GoogleFindMyCard extends LitElement {
       }
 
       .device-card {
-        background: #ffffff;
+        background: var(--gfmc-bg-surface);
         border-radius: 12px;
-        border: 1px solid #e8eaed;
+        border: 1px solid var(--gfmc-border);
         padding: 12px 16px;
         cursor: pointer;
         transition: all 0.2s ease;
@@ -774,7 +918,7 @@ class GoogleFindMyCard extends LitElement {
       .device-name {
         font-size: 16px;
         font-weight: 500;
-        color: #202124;
+        color: var(--gfmc-text);
         margin-bottom: 2px;
         font-family: 'Google Sans', sans-serif;
         white-space: nowrap;
@@ -793,7 +937,7 @@ class GoogleFindMyCard extends LitElement {
         align-items: center;
         gap: 6px;
         font-size: 12px;
-        color: #5f6368;
+        color: var(--gfmc-text-secondary);
       }
 
       .status-dot {
@@ -817,7 +961,7 @@ class GoogleFindMyCard extends LitElement {
 
       .device-location {
         font-size: 12px;
-        color: #5f6368;
+        color: var(--gfmc-text-secondary);
         margin-top: 4px;
         white-space: nowrap;
         overflow: hidden;
@@ -826,7 +970,7 @@ class GoogleFindMyCard extends LitElement {
 
       .last-seen {
         font-size: 11px;
-        color: #9aa0a6;
+        color: var(--gfmc-text-secondary);
         margin-top: 2px;
       }
 
@@ -861,20 +1005,20 @@ class GoogleFindMyCard extends LitElement {
       }
 
       .action-button.secondary {
-        background: #ffffff;
-        color: #1a73e8;
-        border: 1px solid #dadce0;
+        background: var(--gfmc-bg-surface);
+        color: var(--gfmc-text-link);
+        border: 1px solid var(--gfmc-border-control);
       }
 
       .action-button.secondary:hover {
-        background: #f8f9fa;
+        background: var(--gfmc-bg-hover);
       }
 
       .no-devices {
         text-align: center;
         padding: 48px 24px;
-        color: #5f6368;
-        background: rgba(255, 255, 255, 0.95);
+        color: var(--gfmc-text-secondary);
+        background: var(--gfmc-bg-overlay);
         backdrop-filter: blur(10px);
         border-radius: 12px;
         margin: 80px 16px 16px 16px;
@@ -990,7 +1134,7 @@ class GoogleFindMyCard extends LitElement {
           align-items: center !important;
           gap: 6px !important;
           font-size: 11px !important;
-          color: #5f6368 !important;
+          color: var(--gfmc-text-secondary) !important;
         }
 
         .status-dot {
@@ -1018,6 +1162,15 @@ class GoogleFindMyCard extends LitElement {
   setConfig(config) {
     // Accept empty or missing entities array
     const entities = Array.isArray(config?.entities) ? config.entities : [];
+    const hiddenEntities = normalizeEntityIds(config?.hidden_entities);
+    const historyWasEnabled = this.config?.show_history !== false;
+    const historyWillBeEnabled = config?.show_history !== false;
+
+    // Invalidate immediately so a pending response cannot restore history after disable/re-enable.
+    if (historyWasEnabled && !historyWillBeEnabled) {
+      this._historyRequestGeneration++;
+      this._locationHistory = [];
+    }
 
     this.config = {
       title: "Find My Devices",
@@ -1027,11 +1180,18 @@ class GoogleFindMyCard extends LitElement {
       enable_actions: false,
       compact_mode: false,
       keep_device_list_pinned: false,
+      show_history: true,
       show_path_lines: false,
       use_leaflet_map: true,
+      dark_mode: true,
+      carto_key: '',
+      auto_discover: false,
       ...config,
       entities, // Override with validated entities array
+      hidden_entities: hiddenEntities,
     };
+
+    this.classList.toggle('dark', this.config.dark_mode !== false);
   }
 
   render() {
@@ -1094,10 +1254,10 @@ class GoogleFindMyCard extends LitElement {
     if (!selectedDevice) return html``;
 
     const entity = this.hass.states[selectedDevice.entity_id];
-    if (!entity || !entity.attributes.latitude) {
+    if (!hasUsableCoordinates(entity)) {
       return html`
         <div class="map-container">
-          <div style="display: flex; align-items: center; justify-content: center; height: 100%; color: #5f6368;">
+          <div style="display: flex; align-items: center; justify-content: center; height: 100%; color: var(--gfmc-text-secondary);">
             <div style="text-align: center;">
               <ha-icon icon="mdi:map-marker-off" style="width: 48px; height: 48px; opacity: 0.5;"></ha-icon>
               <p>Location not available</p>
@@ -1112,7 +1272,7 @@ class GoogleFindMyCard extends LitElement {
       return html`
         <div class="map-container">
           <div id="leaflet-map"></div>
-          ${this._renderFilterPanel()}
+          ${this.config.show_history !== false ? this._renderFilterPanel() : ''}
         </div>
       `;
     }
@@ -1129,7 +1289,7 @@ class GoogleFindMyCard extends LitElement {
             @error=${() => this._handleMapError(entity.entity_id)}>
           </iframe>
         ` : html`
-          <div style="display: flex; align-items: center; justify-content: center; height: 100%; color: #5f6368;">
+          <div style="display: flex; align-items: center; justify-content: center; height: 100%; color: var(--gfmc-text-secondary);">
             <div style="text-align: center;">
               <ha-icon icon="mdi:map-marker-off" style="width: 48px; height: 48px; opacity: 0.5;"></ha-icon>
               <p>Map unavailable</p>
@@ -1153,7 +1313,7 @@ class GoogleFindMyCard extends LitElement {
     // Get location display text
     const getLocationStatus = () => {
       // Check for coordinates first - GoogleFindMy devices often have state="unknown" but valid coordinates
-      if (entity.attributes.latitude !== undefined && entity.attributes.longitude !== undefined) {
+      if (hasUsableCoordinates(entity)) {
         // If we're in a zone, show that
         if (isHome) return 'At home';
         if (entity.state && entity.state !== 'unknown' && entity.state !== 'unavailable' && entity.state !== 'not_home') {
@@ -1211,13 +1371,32 @@ class GoogleFindMyCard extends LitElement {
   }
 
   _getDevices() {
-    if (!this.config.entities) return [];
+    if (!this.config) return [];
 
-    return this.config.entities.map(entity => {
-      if (typeof entity === 'string') {
-        return { entity_id: entity };
-      }
-      return entity;
+    const configuredDevices = normalizeConfiguredEntities(this.config.entities);
+    let devices;
+
+    if (this.config.auto_discover === true) {
+      const metadataByEntityId = new Map(configuredDevices.map(device => [device.entity_id, device]));
+      const hiddenEntityIds = new Set(normalizeEntityIds(this.config.hidden_entities));
+      devices = discoverEligibleDevices(this.hass, this.config.filter_keywords)
+        .filter(device => !hiddenEntityIds.has(device.entity_id))
+        .map(device => ({ ...device, ...metadataByEntityId.get(device.entity_id), entity_id: device.entity_id }));
+    } else {
+      devices = configuredDevices;
+    }
+
+    devices = devices.filter((device, index, allDevices) =>
+      allDevices.findIndex(candidate => candidate.entity_id === device.entity_id) === index
+    );
+
+    // Keep legacy/manual cards in their saved order so existing selections do not change.
+    if (this.config.auto_discover !== true) return devices;
+
+    return devices.sort((first, second) => {
+      const firstName = first.name || this.hass?.states?.[first.entity_id]?.attributes?.friendly_name || first.entity_id;
+      const secondName = second.name || this.hass?.states?.[second.entity_id]?.attributes?.friendly_name || second.entity_id;
+      return firstName.localeCompare(secondName) || first.entity_id.localeCompare(second.entity_id);
     });
   }
 
@@ -1231,6 +1410,9 @@ class GoogleFindMyCard extends LitElement {
   }
 
   _selectDevice(entityId) {
+    if (this._selectedDevice === entityId) return;
+
+    this._historyRequestGeneration++;
     this._selectedDevice = entityId;
     this.requestUpdate();
   }
@@ -1338,6 +1520,13 @@ class GoogleFindMyCard extends LitElement {
   }
 
   async _fetchLocationHistory() {
+    const requestGeneration = ++this._historyRequestGeneration;
+    if (this.config.show_history === false) {
+      this._locationHistory = [];
+      this._updateMap();
+      return;
+    }
+
     const devices = this._getDevices();
     const selectedDevice = this._selectedDevice ?
       devices.find(d => d.entity_id === this._selectedDevice) :
@@ -1410,11 +1599,22 @@ class GoogleFindMyCard extends LitElement {
         console.warn('[GoogleFindMy] No state data found in history response');
       }
 
+      const currentDeviceId = this._selectedDevice || this._getDevices()[0]?.entity_id;
+      if (requestGeneration !== this._historyRequestGeneration ||
+          this.config.show_history === false ||
+          currentDeviceId !== entityId) return;
+
       this._locationHistory = locations;
       this._updateMap();
     } catch (err) {
       console.error('[GoogleFindMy] Failed to fetch location history:', err);
-      this._locationHistory = [];
+      const currentDeviceId = this._selectedDevice || this._getDevices()[0]?.entity_id;
+      if (requestGeneration === this._historyRequestGeneration &&
+          this.config.show_history !== false &&
+          currentDeviceId === entityId) {
+        this._locationHistory = [];
+        this._updateMap();
+      }
     }
   }
 
@@ -1446,8 +1646,24 @@ class GoogleFindMyCard extends LitElement {
     // Wait for the map container to be in the DOM and have dimensions
     setTimeout(() => {
       const mapContainer = this.shadowRoot.querySelector('#leaflet-map');
+      // Get current device
+      const devices = this._getDevices();
+      const selectedDevice = this._selectedDevice ?
+        devices.find(d => d.entity_id === this._selectedDevice) :
+        devices[0];
+
+      if (!selectedDevice) return;
+
+      const entity = this.hass.states[selectedDevice.entity_id];
+      if (!hasUsableCoordinates(entity)) {
+        this._mapRetryCount = 0;
+        this._clearMap();
+        return;
+      }
+
       if (!mapContainer) {
         this._mapRetryCount = 0;
+        if (this._mapInstance) this._clearMap();
         return;
       }
 
@@ -1468,17 +1684,6 @@ class GoogleFindMyCard extends LitElement {
 
       // Reset retry counter on success
       this._mapRetryCount = 0;
-
-      // Get current device
-      const devices = this._getDevices();
-      const selectedDevice = this._selectedDevice ?
-        devices.find(d => d.entity_id === this._selectedDevice) :
-        devices[0];
-
-      if (!selectedDevice) return;
-
-      const entity = this.hass.states[selectedDevice.entity_id];
-      if (!entity || !entity.attributes.latitude) return;
 
       const lat = entity.attributes.latitude;
       const lon = entity.attributes.longitude;
@@ -1502,11 +1707,22 @@ class GoogleFindMyCard extends LitElement {
           zoomControl: true
         }).setView([lat, lon], 13);
 
-        // Add OpenStreetMap tiles with error handling
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-          attribution: '© OpenStreetMap contributors',
+        // Add map tiles - CARTO dark if key provided, else OSM light
+        const isDark = this.config?.dark_mode !== false;
+        const cartoKey = this.config?.carto_key || '';
+        let tileUrl, tileAttribution;
+        if (isDark && cartoKey) {
+          tileUrl = `https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png?key=${cartoKey}`;
+          tileAttribution = '© OpenStreetMap contributors © CARTO';
+        } else {
+          tileUrl = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
+          tileAttribution = '© OpenStreetMap contributors';
+        }
+        L.tileLayer(tileUrl, {
+          attribution: tileAttribution,
           maxZoom: 19,
-          errorTileUrl: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=='
+          errorTileUrl: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
+          referrerPolicy: 'origin'
         }).addTo(this._mapInstance);
 
         // Wait for tiles to render before invalidating size
@@ -1747,9 +1963,12 @@ class GoogleFindMyCard extends LitElement {
 
 
   async _refreshAll() {
+    const entityIds = this._getDevices().map(device => device.entity_id);
+    if (entityIds.length === 0) return;
+
     // Trigger a coordinator update
     await this.hass.callService('homeassistant', 'update_entity', {
-      entity_id: this.config.entities
+      entity_id: entityIds
     });
   }
 
@@ -1760,12 +1979,15 @@ class GoogleFindMyCard extends LitElement {
   static getStubConfig() {
     return {
       entities: [],
+      auto_discover: true,
+      hidden_entities: [],
       title: "Find My Devices",
       show_last_seen: true,
       show_location_name: true,
       show_coordinates: true,
       enable_actions: false,
       keep_device_list_pinned: false,
+      show_history: true,
       show_path_lines: false,
       use_leaflet_map: true,
       filter_keywords: ""
@@ -1803,7 +2025,7 @@ class GoogleFindMyCardEditor extends LitElement {
   }
 
   setConfig(config) {
-    this._config = config;
+    this._config = config || {};
     this.loadCardHelpers();
   }
 
@@ -1853,6 +2075,10 @@ class GoogleFindMyCardEditor extends LitElement {
     }
 
     const entities = this._getEntities();
+    const autoDiscover = this._config.auto_discover === true;
+    const configuredEntityIds = normalizeConfiguredEntities(this._config.entities)
+      .map(entity => entity.entity_id);
+    const hiddenEntityIds = new Set(normalizeEntityIds(this._config.hidden_entities));
 
     return html`
       <div class="card-config">
@@ -1872,17 +2098,29 @@ class GoogleFindMyCardEditor extends LitElement {
             .configValue=${"filter_keywords"}
             @input=${this._valueChanged}
           ></ha-textfield>
-          <div class="secondary">Keywords to filter device trackers (e.g. android,iphone,googlefindmy)</div>
+          <div class="secondary">Keywords limit GPS devices discovered automatically (e.g. android,iphone,googlefindmy)</div>
+        </div>
+
+        <div class="option">
+          <ha-formfield label="Automatically add new GPS devices">
+            <ha-switch
+              .checked=${autoDiscover}
+              .configValue=${"auto_discover"}
+              @change=${this._valueChanged}
+            ></ha-switch>
+          </ha-formfield>
         </div>
 
         <div class="option">
           <div class="title">Device Entities</div>
-          <div class="secondary">Select Google Find My Device trackers to display</div>
+          <div class="secondary">${autoDiscover
+            ? 'All eligible GPS devices are shown. Uncheck a device to hide it; hidden devices stay excluded when unavailable.'
+            : 'Select Google Find My Device trackers to display.'}</div>
           <div class="values">
             ${entities.map(entity => html`
               <ha-formfield label=${entity.name}>
                 <ha-checkbox
-                  .checked=${this._config.entities?.includes(entity.entity_id)}
+                   .checked=${autoDiscover ? !hiddenEntityIds.has(entity.entity_id) : configuredEntityIds.includes(entity.entity_id)}
                   .entityId=${entity.entity_id}
                   @change=${this._entityToggled}
                 ></ha-checkbox>
@@ -1943,6 +2181,34 @@ class GoogleFindMyCardEditor extends LitElement {
                 @change=${this._valueChanged}
               ></ha-switch>
             </ha-formfield>
+
+            <ha-formfield label="Show Historical Points">
+              <ha-switch
+                .checked=${this._config.show_history !== false}
+                .configValue=${"show_history"}
+                @change=${this._valueChanged}
+              ></ha-switch>
+            </ha-formfield>
+
+            <ha-formfield label="Dark Mode">
+              <ha-switch
+                .checked=${this._config.dark_mode !== false}
+                .configValue=${"dark_mode"}
+                @change=${this._valueChanged}
+              ></ha-switch>
+            </ha-formfield>
+
+        <div class="option">
+          <label style="display:block;margin-bottom:4px;color:var(--primary-text-color)">CARTO API Key (for dark map tiles)</label>
+          <input
+            type="text"
+            .value=${this._config.carto_key || ''}
+            placeholder="Optional - free at carto.com/basemaps/apikey"
+            @input=${this._cartoKeyChanged}
+            style="width:100%;padding:8px;border:1px solid var(--divider-color);border-radius:4px;background:var(--card-background-color);color:var(--primary-text-color);box-sizing:border-box"
+          />
+          <div class="secondary">Get a free key at carto.com/basemaps/apikey — enables dark map tiles</div>
+        </div>
           </div>
         </div>
       </div>
@@ -1950,34 +2216,19 @@ class GoogleFindMyCardEditor extends LitElement {
   }
 
   _getEntities() {
-    const entities = [];
-    Object.keys(this.hass.states).forEach(key => {
-      if (key.startsWith("device_tracker.")) {
-        const entity = this.hass.states[key];
-        const attributes = entity.attributes;
+    return discoverEligibleDevices(this.hass, this._config?.filter_keywords)
+      .sort((first, second) => first.name.localeCompare(second.name) || first.entity_id.localeCompare(second.entity_id));
+  }
 
-        // Filter for GPS-based device trackers
-        const filterKeywords = (this._config?.filter_keywords || "")
-          .split(",")
-          .map(k => k.trim().toLowerCase())
-          .filter(k => k.length > 0);
-
-        const matchesKeyword = filterKeywords.length === 0 || filterKeywords.some(keyword =>
-          key.toLowerCase().includes(keyword)
-        );
-
-        const isGpsDevice = attributes.source_type === "gps" || attributes.latitude !== undefined;
-
-        // Include GPS devices that match the filter keywords (or all GPS if filter is blank)
-        if (isGpsDevice && matchesKeyword) {
-          entities.push({
-            entity_id: key,
-            name: attributes.friendly_name || key
-          });
-        }
-      }
+  _cartoKeyChanged(ev) {
+    if (!this._config) return;
+    this._config = { ...this._config, carto_key: ev.target.value };
+    const event = new CustomEvent("config-changed", {
+      detail: { config: this._config },
+      bubbles: true,
+      composed: true,
     });
-    return entities;
+    this.dispatchEvent(event);
   }
 
   _valueChanged(ev) {
@@ -2006,8 +2257,8 @@ class GoogleFindMyCardEditor extends LitElement {
     });
     this.dispatchEvent(event);
 
-    // Force re-render when filter keywords change to update entity list
-    if (configValue === "filter_keywords") {
+    // These fields change the meaning or contents of the device checklist.
+    if (configValue === "filter_keywords" || configValue === "auto_discover") {
       this.requestUpdate();
     }
   }
@@ -2016,19 +2267,27 @@ class GoogleFindMyCardEditor extends LitElement {
     ev.stopPropagation();
     const entityId = ev.target.entityId;
     const checked = ev.target.checked;
-    let entities = [...(this._config.entities || [])];
+    let newConfig;
 
-    if (checked && !entities.includes(entityId)) {
-      entities.push(entityId);
-    } else if (!checked) {
-      entities = entities.filter(e => e !== entityId);
+    if (this._config.auto_discover === true) {
+      let hiddenEntities = normalizeEntityIds(this._config.hidden_entities);
+      if (checked) {
+        hiddenEntities = hiddenEntities.filter(id => id !== entityId);
+      } else if (!hiddenEntities.includes(entityId)) {
+        hiddenEntities = [...hiddenEntities, entityId];
+      }
+      newConfig = { ...this._config, hidden_entities: hiddenEntities };
+    } else {
+      let entities = Array.isArray(this._config.entities) ? [...this._config.entities] : [];
+      const isConfigured = entities.some(entry => getConfiguredEntityId(entry) === entityId);
+      if (checked && !isConfigured) {
+        entities.push(entityId);
+      } else if (!checked) {
+        // Preserve object-form metadata for every device that remains selected.
+        entities = entities.filter(entry => getConfiguredEntityId(entry) !== entityId);
+      }
+      newConfig = { ...this._config, entities };
     }
-
-    // Create new config object
-    const newConfig = {
-      ...this._config,
-      entities,
-    };
 
     // Update internal config
     this._config = newConfig;
