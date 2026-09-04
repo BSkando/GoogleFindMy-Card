@@ -494,6 +494,10 @@ class GoogleFindMyCard extends LitElement {
         visibility: hidden;
       }
 
+      :host(.dark) #leaflet-map .leaflet-tile {
+        filter: invert(0.92) hue-rotate(180deg) saturate(0.45) brightness(1.05) contrast(1.1);
+      }
+
       .leaflet-tile-loaded {
         visibility: inherit;
       }
@@ -1705,16 +1709,9 @@ class GoogleFindMyCard extends LitElement {
           zoomControl: true
         }).setView([lat, lon], 13);
 
-        // Add map tiles based on dark mode setting
-        const isDark = this.config?.dark_mode !== false;
-        const tileUrl = isDark
-          ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png'
-          : 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
-        const tileAttribution = isDark
-          ? '© OpenStreetMap contributors © CARTO'
-          : '© OpenStreetMap contributors';
-        L.tileLayer(tileUrl, {
-          attribution: tileAttribution,
+        // OSM tiles are filtered by the dark theme stylesheet when needed.
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+          attribution: '© OpenStreetMap contributors',
           maxZoom: 19,
           errorTileUrl: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
           referrerPolicy: 'origin'
@@ -2030,43 +2027,90 @@ class GoogleFindMyCardEditor extends LitElement {
 
   static get styles() {
     return css`
-      .option {
-        padding: 4px 0px;
-        cursor: pointer;
+      :host {
+        display: block;
       }
-      .row {
-        display: flex;
-        margin-bottom: -14px;
-        pointer-events: none;
-      }
-      .title {
-        padding-left: 16px;
-        margin-top: -6px;
-        pointer-events: none;
-      }
-      .secondary {
-        padding-left: 40px;
-        color: var(--secondary-text-color);
-        pointer-events: none;
-      }
-      .values {
-        padding-left: 16px;
-        background: var(--secondary-background-color);
+      .editor {
         display: grid;
+        gap: 16px;
+      }
+      .editor-loading {
+        color: var(--secondary-text-color);
+        font-size: 0.9rem;
+      }
+      .editor-section {
+        min-width: 0;
+        padding: 16px;
+        border: 1px solid var(--divider-color);
+        border-radius: 12px;
+        background: var(--card-background-color, var(--primary-background-color));
+      }
+      .section-heading {
+        margin: 0;
+        color: var(--primary-text-color);
+        font-size: 1rem;
+        font-weight: 500;
+        line-height: 1.4;
+      }
+      .section-helper,
+      .entity-summary,
+      .empty-entities {
+        color: var(--secondary-text-color);
+        font-size: 0.9rem;
+        line-height: 1.4;
+      }
+      .section-helper {
+        margin: 4px 0 16px;
+      }
+      .device-controls {
+        display: grid;
+        gap: 8px;
+      }
+      .entity-summary {
+        margin: 12px 0 8px;
+      }
+      .entity-list {
+        max-height: 280px;
+        overflow-y: auto;
+        border: 1px solid var(--divider-color);
+        border-radius: 8px;
+        background: var(--secondary-background-color);
+      }
+      .empty-entities {
+        padding: 12px;
+      }
+      .display-options {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 4px 16px;
+      }
+      .history-dependent {
+        opacity: 0.6;
       }
       ha-formfield {
-        padding: 8px 16px;
+        display: flex;
+        min-width: 0;
+        padding: 8px;
+        overflow-wrap: anywhere;
       }
       ha-textfield {
         width: 100%;
         display: block;
+      }
+      ha-textfield + ha-textfield {
+        margin-top: 16px;
+      }
+      @media (max-width: 520px) {
+        .display-options {
+          grid-template-columns: minmax(0, 1fr);
+        }
       }
     `;
   }
 
   render() {
     if (!this.hass) {
-      return html`<div>Loading...</div>`;
+      return html`<div class="editor-loading">Loading...</div>`;
     }
 
     const entities = this._getEntities();
@@ -2074,61 +2118,65 @@ class GoogleFindMyCardEditor extends LitElement {
     const configuredEntityIds = normalizeConfiguredEntities(this._config.entities)
       .map(entity => entity.entity_id);
     const hiddenEntityIds = new Set(normalizeEntityIds(this._config.hidden_entities));
+    const selectedEntityIds = new Set(configuredEntityIds);
+    const activeEntityCount = entities.filter(entity => autoDiscover
+      ? !hiddenEntityIds.has(entity.entity_id)
+      : selectedEntityIds.has(entity.entity_id)).length;
+    const historyEnabled = this._config.show_history !== false;
 
     return html`
-      <div class="card-config">
-        <div class="option">
+      <div class="editor">
+        <section class="editor-section">
+          <h3 class="section-heading">Card Setup</h3>
+          <p class="section-helper">Set an optional title and limit which GPS trackers are available below.</p>
           <ha-textfield
             label="Title (Optional)"
             .value=${this._config.title || ""}
             .configValue=${"title"}
             @input=${this._valueChanged}
           ></ha-textfield>
-        </div>
-
-        <div class="option">
           <ha-textfield
             label="Filter Keywords (comma separated)"
             .value=${this._config.filter_keywords || ""}
             .configValue=${"filter_keywords"}
-            @input=${this._valueChanged}
+            @change=${this._valueChanged}
           ></ha-textfield>
-          <div class="secondary">Keywords limit GPS devices discovered automatically (e.g. android,iphone,googlefindmy)</div>
-        </div>
+        </section>
 
-        <div class="option">
-          <ha-formfield label="Automatically add new GPS devices">
-            <ha-switch
-              .checked=${autoDiscover}
-              .configValue=${"auto_discover"}
-              @change=${this._valueChanged}
-            ></ha-switch>
-          </ha-formfield>
-        </div>
-
-        <div class="option">
-          <div class="title">Device Entities</div>
-          <div class="secondary">${autoDiscover
-            ? 'All eligible GPS devices are shown. Uncheck a device to hide it; hidden devices stay excluded when unavailable.'
-            : 'Select Google Find My Device trackers to display.'}</div>
-          <div class="values">
-            ${entities.map(entity => html`
+        <section class="editor-section">
+          <h3 class="section-heading">Devices</h3>
+          <p class="section-helper">${autoDiscover
+            ? 'Checked devices are visible automatically. Uncheck a device to keep it hidden, even while unavailable.'
+          : 'Checked devices are included in this card.'}</p>
+          <div class="device-controls">
+            <ha-formfield label="Automatically add new GPS devices">
+              <ha-switch
+                .checked=${autoDiscover}
+                .configValue=${"auto_discover"}
+                @change=${this._valueChanged}
+              ></ha-switch>
+            </ha-formfield>
+          </div>
+          <div class="entity-summary">${activeEntityCount} of ${entities.length} ${autoDiscover ? 'visible' : 'selected'}</div>
+          <div class="entity-list">
+            ${entities.length === 0 ? html`
+              <div class="empty-entities">No eligible GPS trackers match the current filter.</div>
+            ` : entities.map(entity => html`
               <ha-formfield label=${entity.name}>
                 <ha-checkbox
-                   .checked=${autoDiscover ? !hiddenEntityIds.has(entity.entity_id) : configuredEntityIds.includes(entity.entity_id)}
+                  .checked=${autoDiscover ? !hiddenEntityIds.has(entity.entity_id) : selectedEntityIds.has(entity.entity_id)}
                   .entityId=${entity.entity_id}
                   @change=${this._entityToggled}
                 ></ha-checkbox>
               </ha-formfield>
             `)}
           </div>
-        </div>
+        </section>
 
-        <div class="option">
-          <div class="title">Display Options</div>
-          <div class="values">
-
-
+        <section class="editor-section">
+          <h3 class="section-heading">Display Options</h3>
+          <p class="section-helper">Choose the information and controls shown on the card.</p>
+          <div class="display-options">
             <ha-formfield label="Show Last Seen">
               <ha-switch
                 .checked=${this._config.show_last_seen !== false}
@@ -2169,7 +2217,7 @@ class GoogleFindMyCardEditor extends LitElement {
               ></ha-switch>
             </ha-formfield>
 
-            <ha-formfield label="Show Path Lines (History)">
+            <ha-formfield class=${historyEnabled ? '' : 'history-dependent'} label="Show Path Lines (History)">
               <ha-switch
                 .checked=${this._config.show_path_lines !== false}
                 .configValue=${"show_path_lines"}
@@ -2193,7 +2241,7 @@ class GoogleFindMyCardEditor extends LitElement {
               ></ha-switch>
             </ha-formfield>
           </div>
-        </div>
+        </section>
       </div>
     `;
   }
